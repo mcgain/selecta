@@ -107,8 +107,8 @@ describe Search do
       config = Configuration.from_inputs(["spec/search_spec.rb", "search.rb"],
                                          Configuration.default_options)
       search = Search.blank(config)
-      expect(search.append_search_string("search").matches).to eq ["search.rb",
-                                                                   "spec/search_spec.rb"]
+      expect(search.append_search_string("search.rb").matches).to eq ["search.rb",
+                                                                      "spec/search_spec.rb"]
     end
   end
 
