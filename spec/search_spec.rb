@@ -73,7 +73,15 @@ describe Search do
     end
 
     it "resets the index" do
+      search = self.search.down
+      expect(search.index).to eq 1
       expect(search.backspace.index).to eq 0
+    end
+
+    it "does nothing when the query is empty" do
+      search = self.search.backspace.backspace
+      expect(search.index).to eq 0
+      expect(search.query).to eq ""
     end
   end
 
