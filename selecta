@@ -338,7 +338,7 @@ class Score
       indexes
     end
 
-    WORD_CHAR_REGEX = /\A\p{Alnum}+\z/
+    WORD_CHAR_REGEX = /\A\p{Word}+\z/
 
     # Find each of the characters in the candidate, moving strictly left to
     # right. This function recursively calls itself up to twice for each call.
