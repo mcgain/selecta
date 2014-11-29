@@ -279,7 +279,11 @@ class Search
   private
 
   def compute_matches
-    @choices.map do |choice|
+    filter_re = /#{query.chars.join(".*")}/i
+
+    @choices.select do |choice|
+      choice =~ filter_re
+    end.map do |choice|
       [choice, Score.score(choice, @query)]
     end.select do |choice, score|
       score < Float::INFINITY
