@@ -268,37 +268,49 @@ class Search
   end
 
   def recompute_matches
+    # If there are enough perfect-scoring matches, then we don't even need to
+    # run the main score algorithm because those matches are guaranteed to win.
+    matches = perfect_matches || recompute_matches_the_hard_way
+
+    merge(:matches => matches)
+  end
+
+  def perfect_matches
+    # A perfect match is one that contains the exact query, in order, with the
+    # characters either being adjacent (like "xfoox" for a query of "foo") or
+    # having word boundaries before them (like "f-o-o" for a query of "foo").
     perfect_filter_re = /#{query.chars.join("(.*\p{^Word})?")}/
 
-    # If there are enough perfect-scoring matches to fill the screen, then we
-    # don't even need to run the main score algorithm because those matches
-    # will win.
     perfect_matches = @choices.select do |choice|
       choice =~ perfect_filter_re
-    end.take(config.visible_choices)
+    end
+    .sort_by(&:length)
+    .take(config.visible_choices)
+
     if perfect_matches.length == config.visible_choices
-      merge(:matches => perfect_matches)
+      perfect_matches
     else
-      recompute_matches_the_hard_way
+      nil
     end
   end
 
   def recompute_matches_the_hard_way
+    # Filter the choices before running the actual algorithm. Anything that
+    # doesn't contain all of the query characters, in order, is guaranteed to
+    # lose.
     filter_re = /#{query.chars.join(".*")}/i
 
-    matches = @choices.select do |choice|
+    @choices.select do |choice|
       choice =~ filter_re
     end.map do |choice|
       [choice, Score.score(choice, @query)]
     end.select do |choice, score|
-      score < Float::INFINITY
+      score != Float::INFINITY
     end.sort_by do |choice, score|
       [score, choice.length]
     end.map do |choice, score|
       choice
     end
-
-    merge(:matches => matches)
   end
 
   class NoSelection; end
