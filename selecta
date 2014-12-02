@@ -293,7 +293,7 @@ class Search
     end.select do |choice, score|
       score < Float::INFINITY
     end.sort_by do |choice, score|
-      score
+      [score, choice.length]
     end.map do |choice, score|
       choice
     end
