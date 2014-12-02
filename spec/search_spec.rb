@@ -115,17 +115,16 @@ describe Search do
       config = Configuration.from_inputs(["spec/search_spec.rb", "search.rb"],
                                          Configuration.default_options)
       search = Search.blank(config)
-      expect(search.append_search_string("search.rb").matches).to eq ["search.rb",
-                                                                      "spec/search_spec.rb"]
+      expect(search.append_search_string("search.rb").matches)
+      .to eq ["search.rb", "spec/search_spec.rb"]
     end
 
     it "sorts the choices by length when they have the same score" do
       config = Configuration.from_inputs(["xfoox", "foo", "xxfooxx"],
                                          Configuration.default_options)
       search = Search.blank(config)
-      expect(search.append_search_string("foo").matches).to eq ["foo",
-                                                                "xfoox",
-                                                                "xxfooxx"]
+      expect(search.append_search_string("foo").matches)
+      .to eq ["foo", "xfoox", "xxfooxx"]
     end
   end
 
