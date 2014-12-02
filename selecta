@@ -307,15 +307,16 @@ end
 class Score
   class << self
     def score(choice, query)
-      return 0.0 if query.length == 0
-      return Float::INFINITY if choice.length == 0
+      return 0.0 if query.empty?
+      return Float::INFINITY if choice.empty?
 
-      choice = choice.downcase
-      query = query.downcase
-
+      choice, query = choice.downcase, query.downcase
       match_length = score_from_best_starting_point(choice, query)
-      return Float::INFINITY unless match_length
-      match_length
+      if match_length
+        match_length
+      else
+        Float::INFINITY
+      end
     end
 
     # Find the length of the shortest substring matching the given characters.
