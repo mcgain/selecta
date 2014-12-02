@@ -185,10 +185,8 @@ class Search
     @query = vars.fetch(:query)
     @done = vars.fetch(:done)
     @aborted = vars.fetch(:aborted)
-
-    # Lazily compute matches if there aren't any
-    @matches = vars.fetch(:matches) { compute_matches }
-    @vars = vars.merge(:matches => @matches)
+    @matches = vars.fetch(:matches)
+    @vars = vars
   end
 
   def self.blank(config)
@@ -197,20 +195,13 @@ class Search
         :index => 0,
         :query => config.initial_search,
         :done => false,
-        :aborted => false)
+        :aborted => false,
+        :matches => config.choices)
   end
 
   # Construct a new Search by merging in a hash of changes.
   def merge(changes)
     vars = @vars.merge(changes)
-
-    # If the query changed, throw away the old matches so that new ones will be
-    # computed.
-    matches_are_stale = vars.fetch(:query) != @query
-    if matches_are_stale
-      vars = vars.reject { |key| key == :matches }
-    end
-
     Search.new(vars)
   end
 
@@ -249,23 +240,23 @@ class Search
   end
 
   def append_search_string(string)
-    merge(:index => 0,
-          :query => @query + string)
+    merge(:index => 0, :query => @query + string)
+    .recompute_matches
   end
 
   def backspace
-    merge(:index => 0,
-          :query => @query[0...-1])
+    merge(:index => 0, :query => @query[0...-1])
+    .recompute_matches
   end
 
   def clear_query
-    merge(:index => 0,
-          :query => "")
+    merge(:index => 0, :query => "")
+    .recompute_matches
   end
 
   def delete_word
-    merge(:index => 0,
-          :query => @query.sub(/[^ ]* *$/, ""))
+    merge(:index => 0, :query => @query.sub(/[^ ]* *$/, ""))
+    .recompute_matches
   end
 
   def done
@@ -276,12 +267,26 @@ class Search
     merge(:aborted => true)
   end
 
-  private
+  def recompute_matches
+    perfect_filter_re = /#{query.chars.join("(.*\p{^Word})?")}/
 
-  def compute_matches
+    # If there are enough perfect-scoring matches to fill the screen, then we
+    # don't even need to run the main score algorithm because those matches
+    # will win.
+    perfect_matches = @choices.select do |choice|
+      choice =~ perfect_filter_re
+    end.take(config.visible_choices)
+    if perfect_matches.length == config.visible_choices
+      merge(:matches => perfect_matches)
+    else
+      recompute_matches_the_hard_way
+    end
+  end
+
+  def recompute_matches_the_hard_way
     filter_re = /#{query.chars.join(".*")}/i
 
-    @choices.select do |choice|
+    matches = @choices.select do |choice|
       choice =~ filter_re
     end.map do |choice|
       [choice, Score.score(choice, @query)]
@@ -292,6 +297,8 @@ class Search
     end.map do |choice, score|
       choice
     end
+
+    merge(:matches => matches)
   end
 
   class NoSelection; end
