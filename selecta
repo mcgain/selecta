@@ -287,10 +287,9 @@ class Search
     # having word boundaries before them (like "f-o-o" for a query of "foo").
     perfect_filter_re = /#{query.chars.join("(.*\p{^Word})?")}/
 
-    perfect_matches = @choices.lazy.select do |choice|
+    perfect_matches = @choices.select do |choice|
       choice =~ perfect_filter_re
     end
-    .take(config.visible_choices)
     .map do |choice|
       [choice, 0.0]
     end
