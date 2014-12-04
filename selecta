@@ -200,6 +200,7 @@ class Search
         :aborted => false,
         :unsorted_matches => config.choices,
         :matches => config.choices)
+    .fully_recompute_matches
   end
 
   # Construct a new Search by merging in a hash of changes.
