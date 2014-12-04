@@ -292,7 +292,7 @@ class Score
       # A choice will have the minimum score if it contains all of the query
       # characters, with each either adjacent to the previous one or at a word
       # boundary.
-      perfect_filter_re = /#{query.chars.join("(.*\p{^Word})?")}/
+      perfect_filter_re = /#{query.chars.join("(.*\p{^Word})?")}/i
 
       perfect_matches = choices.select do |choice|
         choice =~ perfect_filter_re
@@ -310,7 +310,7 @@ class Score
     def score_many_using_full_algorithm(choices, query, choices_with_perfect_scores)
       # A choice will match if it contains all of the query characters in
       # order. No need to run the algorithm if a choice doesn't match this.
-      filter_re = /#{query.chars.join(".*")}/
+      filter_re = /#{query.chars.join(".*")}/i
 
       choices_with_perfect_scores = choices_with_perfect_scores.to_set
 
