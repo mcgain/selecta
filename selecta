@@ -176,7 +176,7 @@ class Configuration < Struct.new(:visible_choices, :initial_search, :choices)
 end
 
 class Search
-  attr_reader :choices, :index, :query, :config, :matches
+  attr_reader :choices, :index, :query, :config, :unsorted_matches, :matches
 
   def initialize(vars)
     @config = vars.fetch(:config)
@@ -185,6 +185,7 @@ class Search
     @query = vars.fetch(:query)
     @done = vars.fetch(:done)
     @aborted = vars.fetch(:aborted)
+    @unsorted_matches = vars.fetch(:unsorted_matches)
     @matches = vars.fetch(:matches)
     @vars = vars
   end
@@ -196,6 +197,7 @@ class Search
         :query => config.initial_search,
         :done => false,
         :aborted => false,
+        :unsorted_matches => config.choices,
         :matches => config.choices)
   end
 
@@ -268,53 +270,9 @@ class Search
   end
 
   def recompute_matches
-    # If there are enough perfect-scoring matches, then we don't even need to
-    # run the main score algorithm because those matches are guaranteed to win.
-    matches = perfect_matches || recompute_matches_the_hard_way
-
-    matches = matches.sort_by do |choice, score|
-      [score, choice.length]
-    end.map do |choice, score|
-      choice
-    end
-
-    merge(:matches => matches)
-  end
-
-  def perfect_matches
-    # A perfect match is one that contains the exact query, in order, with the
-    # characters either being adjacent (like "xfoox" for a query of "foo") or
-    # having word boundaries before them (like "f-o-o" for a query of "foo").
-    perfect_filter_re = /#{query.chars.join("(.*\p{^Word})?")}/
-
-    perfect_matches = @choices.select do |choice|
-      choice =~ perfect_filter_re
-    end
-    .map do |choice|
-      [choice, 0.0]
-    end
-    .to_a
-
-    if perfect_matches.length == config.visible_choices
-      perfect_matches
-    else
-      nil
-    end
-  end
-
-  def recompute_matches_the_hard_way
-    # Filter the choices before running the actual algorithm. Anything that
-    # doesn't contain all of the query characters, in order, is guaranteed to
-    # lose.
-    filter_re = /#{query.chars.join(".*")}/i
-
-    @choices.select do |choice|
-      choice =~ filter_re
-    end.map do |choice|
-      [choice, Score.score(choice, @query)]
-    end.select do |choice, score|
-      score != Float::INFINITY
-    end
+    unsorted_matches, matches = Score.score_many(self.unsorted_matches, query)
+    merge(:matches => matches,
+          :unsorted_matches => unsorted_matches)
   end
 
   class NoSelection; end
@@ -322,6 +280,41 @@ end
 
 class Score
   class << self
+    def score_many(choices, query)
+      # A choice will match if it contains all of the query characters in
+      # order.
+      filter_re = /#{query.chars.join(".*")}/
+
+      # A choice will have the minimum score if it contains all of the query
+      # characters, with each either adjacent to the previous one or at a word
+      # boundary.
+      perfect_filter_re = /#{query.chars.join("(.*\p{^Word})?")}/
+
+      choices_and_scores = choices.map do |choice|
+        if choice =~ perfect_filter_re
+          # A perfect match scores the minimum score, one point per query
+          # character.
+          [choice, query.length]
+        elsif choice =~ filter_re
+          [choice, score(choice, query)]
+        else
+          [choice, Float::INFINITY]
+        end
+      end.select do |choice, score|
+        score != Float::INFINITY
+      end
+
+      unsorted_matches = choices_and_scores.map { |choice, score| choice }
+
+      matches = choices_and_scores.sort_by do |choice, score|
+        [score, choice.length]
+      end.map do |choice, score|
+        choice
+      end
+
+      [unsorted_matches, matches]
+    end
+
     def score(choice, query)
       return 0.0 if query.empty?
       return Float::INFINITY if choice.empty?
