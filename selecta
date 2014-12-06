@@ -177,7 +177,7 @@ class Configuration < Struct.new(:visible_choices, :initial_search, :choices)
 end
 
 class Search
-  attr_reader :choices, :index, :query, :config, :unsorted_matches, :matches
+  attr_reader :choices, :index, :query, :config, :unsorted_matches, :matches, :match_states_by_query
 
   def initialize(vars)
     @config = vars.fetch(:config)
@@ -188,6 +188,7 @@ class Search
     @aborted = vars.fetch(:aborted)
     @unsorted_matches = vars.fetch(:unsorted_matches)
     @matches = vars.fetch(:matches)
+    @match_states_by_query = vars.fetch(:match_states_by_query)
     @vars = vars
   end
 
@@ -199,7 +200,8 @@ class Search
         :done => false,
         :aborted => false,
         :unsorted_matches => config.choices,
-        :matches => config.choices)
+        :matches => config.choices,
+        :match_states_by_query => {})
     .fully_recompute_matches
   end
 
@@ -278,9 +280,12 @@ class Search
   end
 
   def progressively_recompute_matches
-    match_state = Score.score_many(self.unsorted_matches, query)
+    match_state = match_states_by_query.fetch(query) do
+      Score.score_many(self.unsorted_matches, query)
+    end
     merge(:matches => match_state.scored_matches,
-          :unsorted_matches => match_state.unsorted_matches)
+          :unsorted_matches => match_state.unsorted_matches,
+          :match_states_by_query => match_states_by_query.merge(query => match_state))
   end
 
   class NoSelection; end
