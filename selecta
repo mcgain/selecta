@@ -177,7 +177,7 @@ class Configuration < Struct.new(:visible_choices, :initial_search, :choices)
 end
 
 class Search
-  attr_reader :choices, :index, :query, :config, :unsorted_matches, :matches, :match_states_by_query
+  attr_reader :choices, :index, :query, :config, :matches, :match_state, :match_states_by_query
 
   def initialize(vars)
     @config = vars.fetch(:config)
@@ -186,8 +186,8 @@ class Search
     @query = vars.fetch(:query)
     @done = vars.fetch(:done)
     @aborted = vars.fetch(:aborted)
-    @unsorted_matches = vars.fetch(:unsorted_matches)
     @matches = vars.fetch(:matches)
+    @match_state = vars.fetch(:match_state)
     @match_states_by_query = vars.fetch(:match_states_by_query)
     @vars = vars
   end
@@ -199,8 +199,10 @@ class Search
         :query => config.initial_search,
         :done => false,
         :aborted => false,
-        :unsorted_matches => config.choices,
         :matches => config.choices,
+        :match_state => MatchState.new(config.choices.map do |choice|
+          Match.from_choice(choice)
+        end),
         :match_states_by_query => {})
     .fully_recompute_matches
   end
@@ -247,7 +249,7 @@ class Search
 
   def append_search_string(string)
     merge(:index => 0, :query => @query + string)
-    .progressively_recompute_matches
+    .fully_recompute_matches
   end
 
   def backspace
@@ -274,70 +276,53 @@ class Search
   end
 
   def fully_recompute_matches
-    # Resetting the unsorted_matches array will force all choices to be
-    # reconsidered.
-    merge(:unsorted_matches => choices).progressively_recompute_matches
-  end
-
-  def progressively_recompute_matches
     match_state = match_states_by_query.fetch(query) do
-      Score.score_many(self.unsorted_matches, query)
+      MatchState.new(Score.score_many(self.match_state.matches, query))
     end
     merge(:matches => match_state.scored_matches,
-          :unsorted_matches => match_state.unsorted_matches,
+          :match_state => match_state,
           :match_states_by_query => match_states_by_query.merge(query => match_state))
   end
 
   class NoSelection; end
 end
 
-class MatchState < Struct.new(:unsorted_matches, :scored_matches)
+class MatchState < Struct.new(:matches)
+  def scored_matches
+    matches.map(&:choice)
+  end
+end
+
+class Match < Struct.new(:choice, :last_match_index, :score)
+  def self.from_choice(choice)
+    new(choice, 0, 0)
+  end
 end
 
 class Score
   class << self
-    def score_many(choices, query)
-      # A choice will match if it contains all of the query characters in
-      # order. No need to run the algorithm if a choice doesn't match this.
-      filter_re = /#{query.chars.join(".*")}/i
-
-      # Generate the list of all choices that match the query, regardless of
-      # score. All future scoring proceeds from the list generated here.
-      unsorted_matches = choices.grep(filter_re)
-
-      # A choice will have the minimum score if it contains all of the query
-      # characters, with each either adjacent to the previous one or at a word
-      # boundary.
-      perfect_filter_re = /#{query.chars.join("(.*\p{^Word})?")}/i
-
-      perfect_matches = unsorted_matches.grep(perfect_filter_re)
-
-      if perfect_matches.length >= 20
-        matches = perfect_matches.sort_by(&:length)
-        MatchState.new(unsorted_matches, matches)
-      else
-        matches = score_many_using_full_algorithm(unsorted_matches,
-                                                  query,
-                                                  perfect_matches)
-        MatchState.new(unsorted_matches, matches)
+    def score_many(matches, query)
+      if query.empty?
+        return matches
       end
-    end
 
-    def score_many_using_full_algorithm(choices, query, choices_with_perfect_scores)
-      choices_with_perfect_scores = choices_with_perfect_scores.to_set
-
-      choices.map do |choice|
-        if choices_with_perfect_scores.include?(choice)
-          # A perfect match scores the minimum score, one point per query
-          # character.
-          [choice, query.length]
+      matches.map do |match|
+        next_index = match.choice.index(query[-1], match.last_match_index + 1)
+        if next_index
+          at_boundary = match.choice[next_index - 1] !~ WORD_CHAR_REGEX
+          if at_boundary
+            score_delta = 1
+          else
+            score_delta = next_index - match.last_match_index
+          end
+          Match.new(match.choice, next_index, match.score + score_delta)
         else
-          [choice, score(choice, query)]
+          nil
         end
-      end.sort_by do |choice, score|
-        [score, choice.length]
-      end.map do |choice, score|
-        choice
+      end
+      .compact
+      .sort_by do |match|
+        [match.score, match.choice.length]
       end
     end
 
