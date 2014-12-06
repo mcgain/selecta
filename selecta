@@ -299,6 +299,15 @@ class Match < Struct.new(:choice, :last_match_index, :score)
   end
 end
 
+class WordBoundary
+  WORD_CHAR_REGEX = /\p{Word}/
+  CACHE = {}
+
+  def self.is_boundary_char?(char)
+    CACHE[char] ||= char =~ WORD_CHAR_REGEX
+  end
+end
+
 class Score
   class << self
     def score_many(matches, query)
@@ -307,18 +316,7 @@ class Score
       end
 
       matches.map do |match|
-        next_index = match.choice.index(query[-1], match.last_match_index + 1)
-        if next_index
-          at_boundary = match.choice[next_index - 1] !~ WORD_CHAR_REGEX
-          if at_boundary
-            score_delta = 1
-          else
-            score_delta = next_index - match.last_match_index
-          end
-          Match.new(match.choice, next_index, match.score + score_delta)
-        else
-          nil
-        end
+        score_match(match, query)
       end
       .compact
       .sort_by do |match|
@@ -326,76 +324,19 @@ class Score
       end
     end
 
-    def score(choice, query)
-      return 0.0 if query.empty?
-      return Float::INFINITY if choice.empty?
-
-      choice, query = choice.downcase, query.downcase
-      match_length = score_from_best_starting_point(choice, query)
-      if match_length
-        match_length
-      else
-        Float::INFINITY
-      end
-    end
-
-    # Find the length of the shortest substring matching the given characters.
-    # We run the scoring algorithm multiple times, starting from each
-    # occurrence of the first letter in the query.
-    def score_from_best_starting_point(candidate, query)
-      return query.length if candidate.include?(query)
-
-      query = query.chars
-      first_matching_indexes = character_occurrences_in_string(candidate, query[0])
-
-      first_matching_indexes.map do |first_index|
-        score_substring(candidate[first_index..-1], query)
-      end.compact.min
-    end
-
-    def character_occurrences_in_string(candidate, char)
-      index = 0
-      indexes = []
-      while index
-        index = candidate.index(char, index)
-        if index
-          indexes << index
-          index += 1
-        end
-      end
-      indexes
-    end
-
-    WORD_CHAR_REGEX = /\A\p{Word}+\z/
-
-    # Find each of the characters in the candidate, moving strictly left to
-    # right. This function recursively calls itself up to twice for each call.
-    # For each character in the query, we need to consider the possibility of
-    # scoring both the closest instance of the character and the closest
-    # instance of the character on a word boundary.
-    #
-    # candidate: the substring that we're trying to score
-    # query: the query string as an array of characters
-    def score_substring(candidate, query)
-      return 0 if query.empty?
-
-      score = 0
-
-      last_index = first_index = -1
-      query.each do |this_char|
-        index = candidate.index(this_char, last_index + 1)
-        return nil unless index
-
-        at_boundary = index == 0 || candidate[index - 1] !~ WORD_CHAR_REGEX
+    def score_match(match, query)
+      index = match.choice.index(query[-1], match.last_match_index + 1)
+      if index
+        at_boundary = WordBoundary.is_boundary_char?(match.choice[index - 1])
         if at_boundary
-          score += 1
+          score_delta = 1
         else
-          score += index - last_index
+          score_delta = index - match.last_match_index
         end
-        last_index = index
+        Match.new(match.choice, index, match.score + score_delta)
+      else
+        nil
       end
-
-      score
     end
   end
 end
