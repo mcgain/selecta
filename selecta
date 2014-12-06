@@ -304,7 +304,7 @@ class WordBoundary
   CACHE = {}
 
   def self.is_boundary_char?(char)
-    CACHE[char] ||= char =~ WORD_CHAR_REGEX
+    CACHE[char] ||= char !~ WORD_CHAR_REGEX
   end
 end
 
