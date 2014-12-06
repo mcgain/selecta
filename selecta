@@ -278,12 +278,15 @@ class Search
   end
 
   def progressively_recompute_matches
-    unsorted_matches, matches = Score.score_many(self.unsorted_matches, query)
-    merge(:matches => matches,
-          :unsorted_matches => unsorted_matches)
+    match_state = Score.score_many(self.unsorted_matches, query)
+    merge(:matches => match_state.scored_matches,
+          :unsorted_matches => match_state.unsorted_matches)
   end
 
   class NoSelection; end
+end
+
+class MatchState < Struct.new(:unsorted_matches, :scored_matches)
 end
 
 class Score
@@ -306,10 +309,12 @@ class Score
 
       if perfect_matches.length >= 20
         matches = perfect_matches.sort_by(&:length)
-        [unsorted_matches, matches]
+        MatchState.new(unsorted_matches, matches)
       else
-        [unsorted_matches,
-         score_many_using_full_algorithm(unsorted_matches, query, perfect_matches)]
+        matches = score_many_using_full_algorithm(unsorted_matches,
+                                                  query,
+                                                  perfect_matches)
+        MatchState.new(unsorted_matches, matches)
       end
     end
 
