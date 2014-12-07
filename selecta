@@ -31,6 +31,8 @@ KEY_CTRL_M = ?\C-m
 KEY_DELETE = 127.chr # Equivalent to ?\C-?
 KEY_ESC    = ?\C-[
 
+BOUNDARY_CHARS = (('a'..'z').to_a + ('A'..'Z').to_a + ["-", "_"]).to_set
+
 class Selecta
   VERSION = [0, 0, 6]
 
@@ -293,18 +295,23 @@ class MatchState < Struct.new(:matches)
   end
 end
 
-class Match < Struct.new(:choice, :last_match_index, :score)
-  def self.from_choice(choice)
-    new(choice, 0, 0)
+class Match
+  attr_reader :choice, :score, :submatches
+
+  def initialize(choice, score, submatches)
+    @choice = choice
+    @score = score
+    @submatches = submatches
   end
-end
 
-class WordBoundary
-  WORD_CHAR_REGEX = /\p{Word}/
-  CACHE = {}
+  def self.from_choice(choice)
+    new(choice, 0, [])
+  end
 
-  def self.is_boundary_char?(char)
-    CACHE[char] ||= char !~ WORD_CHAR_REGEX
+  def update_submatches(submatches)
+    Match.new(choice,
+              submatches.map { |index, score| score }.min,
+              submatches)
   end
 end
 
@@ -315,28 +322,58 @@ class Score
         return matches
       end
 
-      matches.map do |match|
-        score_match(match, query)
+      char = query[-1]
+
+      matches =
+        if query.length == 1
+          matches.map do |match|
+            indexes = character_occurrences_in_string(match.choice, char)
+            match.update_submatches(indexes.map { |index| [index, 1] })
+          end
+        else
+          matches.map do |match|
+            score_match(match, char)
+          end
+        end
+
+      matches
+      .select do |match|
+        match && match.score
       end
-      .compact
       .sort_by do |match|
         [match.score, match.choice.length]
       end
     end
 
-    def score_match(match, query)
-      index = match.choice.index(query[-1], match.last_match_index + 1)
-      if index
-        at_boundary = WordBoundary.is_boundary_char?(match.choice[index - 1])
-        if at_boundary
-          score_delta = 1
+    def score_match(match, char)
+      submatches = match.submatches.map do |last_index, last_score|
+        index = match.choice.index(char, last_index + 1)
+        if index
+          at_boundary = BOUNDARY_CHARS.include?(match.choice[index - 1])
+          score_delta = if at_boundary
+                          1
+                        else
+                          index - last_index
+                        end
+          [index, last_score + score_delta]
         else
-          score_delta = index - match.last_match_index
+          nil
         end
-        Match.new(match.choice, index, match.score + score_delta)
-      else
-        nil
+      end.compact
+      match.update_submatches(submatches)
+    end
+
+    def character_occurrences_in_string(candidate, char)
+      index = 0
+      indexes = []
+      while index
+        index = candidate.index(char, index)
+        if index
+          indexes << index
+          index += 1
+        end
       end
+      indexes
     end
   end
 end
