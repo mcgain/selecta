@@ -31,7 +31,7 @@ KEY_CTRL_M = ?\C-m
 KEY_DELETE = 127.chr # Equivalent to ?\C-?
 KEY_ESC    = ?\C-[
 
-BOUNDARY_CHARS = (('a'..'z').to_a + ('A'..'Z').to_a + ["-", "_"]).to_set
+WORD_CHARS = (('a'..'z').to_a + ('A'..'Z').to_a + ["-", "_"]).to_set
 
 class Selecta
   VERSION = [0, 0, 6]
@@ -349,7 +349,7 @@ class Score
       submatches = match.submatches.map do |last_index, last_score|
         index = match.choice.index(char, last_index + 1)
         if index
-          at_boundary = BOUNDARY_CHARS.include?(match.choice[index - 1])
+          at_boundary = WORD_CHARS.include?(match.choice[index - 1])
           score_delta = if at_boundary
                           1
                         else
