@@ -1,6 +1,6 @@
 # Mcgain's fork of selecta
 
-## I add some new keys (see Selecta supports these keys), otherwise behaviour is unchanged
+## I add some new keys (see "Selecta supports these keys"), otherwise behaviour is unchanged
 
 Selecta is a fuzzy selector. You can use it for fuzzy selection in the style of
 Command-T, ctrlp, etc. You can also use it to fuzzy select anything else:
@@ -33,9 +33,9 @@ Selecta supports these keys:
 - ^H to delete the character before the cursor
 - ^U to delete the entire line
 - ^N to select the next match
-- j  to select the next match
+- j  to select the next match(I hope you don't have many filenames with j's)
 - ^P to select the previous match
-- k  to select the previous match
+- k  to select the previous match(I hope you don't have many filenames with k's)
 - ^C to quit without selecting a match
 - ^ESC to quit without selecting a match
 
